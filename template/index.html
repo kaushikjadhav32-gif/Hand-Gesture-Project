@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Gesture Smart Control</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+
+    <!-- MediaPipe -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+    <style>
+        body {
+            background-color: beige;
+            text-align: center;
+            font-family: Arial;
+            transition: 0.3s;
+        }
+
+        h2 {
+            background: #4CAF50;
+            color: white;
+            padding: 10px;
+        }
+
+        #status {
+            font-size: 20px;
+            margin: 10px;
+            font-weight: bold;
+        }
+
+        video,
+        canvas {
+            border: 2px solid black;
+            margin: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>Gesture Smart Control 👋</h2>
+    <div id="status">Status: Waiting...</div>
+
+    <video id="video" width="640" height="480" autoplay></video>
+    <canvas id="canvas" width="640" height="480"></canvas>
+
+    <script>
+        const videoElement = document.getElementById("video");
+        const canvasElement = document.getElementById("canvas");
+        const ctx = canvasElement.getContext("2d");
+        const statusText = document.getElementById("status");
+
+        // MediaPipe setup
+        const hands = new Hands({
+            locateFile: (file) =>
+                `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
+        });
+
+        hands.onResults(results => {
+            ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            ctx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.multiHandLandmarks) {
+
+                for (const landmarks of results.multiHandLandmarks) {
+
+                    // Draw points
+                    for (let i = 0; i < landmarks.length; i++) {
+                        let x = landmarks[i].x * canvasElement.width;
+                        let y = landmarks[i].y * canvasElement.height;
+
+                        ctx.beginPath();
+                        ctx.arc(x, y, 5, 0, 2 * Math.PI);
+                        ctx.fillStyle = "red";
+                        ctx.fill();
+                    }
+
+                    // Count fingers
+                    let fingers = 0;
+
+                    if (landmarks[8].y < landmarks[6].y) fingers++;   // index
+                    if (landmarks[12].y < landmarks[10].y) fingers++; // middle
+                    if (landmarks[16].y < landmarks[14].y) fingers++; // ring
+                    if (landmarks[20].y < landmarks[18].y) fingers++; // pinky
+
+                    console.log("Fingers:", fingers);
+
+                    // Actions
+                    if (fingers == 1) {
+                        document.body.style.background = "lightgreen";
+                        statusText.innerText = "💡 Light ON";
+
+                        // OPTIONAL (ESP32)
+                        // fetch("http://192.168.1.100/on");
+                    }
+                    else if (fingers == 2) {
+                        document.body.style.background = "blue";
+                        statusText.innerText = "🌀 Fan ON";
+
+                        // fetch("http://192.168.1.100/fan");
+                    }
+                    else if (fingers == 3) {
+                        document.body.style.background = "red";
+                        statusText.innerText = "❄️ AC ON";
+
+                        // fetch("http://192.168.1.100/ac");
+                    }
+                    else {
+                        document.body.style.background = "white";
+                        statusText.innerText = "⛔ OFF";
+                    }
+                }
+            }
+        });
+
+        // Start camera
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({ image: videoElement });
+            },
+            width: 640,
+            height: 480
+        });
+
+        camera.start();
+    </script>
+
+</body>
+
+</html>
